@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Bodoni Moda Variable", "Didot", Georgia, serif;
+  --font-sans: "Jost Variable", system-ui, sans-serif;
+  --pearl: #FAF8F5;
+  --midnight: #0E1F2E;
+  --ink: #15212C;
+}
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  body {
+    background: var(--pearl);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 400; line-height: 1.08; letter-spacing: -0.01em; font-optical-sizing: auto; }
+  ::selection { background: #F5DFD9; color: #0E1F2E; }
+  :focus-visible { outline: 2px solid #C29B57; outline-offset: 3px; border-radius: 2px; }
+  input, select, textarea { font: inherit; }
+}
+
+@layer components {
+  .wrap { @apply mx-auto w-full max-w-site px-5 sm:px-8 lg:px-12; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-[15px] font-medium tracking-wide transition-colors duration-300 ease-silk disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-wine { @apply btn bg-midnight text-pearl hover:bg-midnight-soft; }
+  .btn-pearl { @apply btn bg-pearl text-midnight hover:bg-champagne; }
+  .btn-line { @apply btn border border-current hover:bg-midnight hover:text-pearl hover:border-midnight; }
+  .link { @apply underline decoration-1 underline-offset-4 transition-opacity hover:opacity-75; }
+  .field { @apply w-full rounded-xl border border-midnight/15 bg-white/70 px-4 py-3 text-[15px] text-ink placeholder:text-ink/40 focus:border-midnight/50 focus:outline-none focus:ring-2 focus:ring-champagne; }
+  .label { @apply mb-1.5 block text-sm text-ink/70; }
+  .display-xl { font-size: clamp(3.2rem, 9vw, 8.5rem); line-height: 0.95; letter-spacing: -0.03em; }
+  .display-l { font-size: clamp(2.4rem, 5.5vw, 4.75rem); line-height: 1.02; letter-spacing: -0.02em; }
+  .display-m { font-size: clamp(1.9rem, 3.6vw, 3rem); line-height: 1.08; }
+  .lede { @apply text-[17px] leading-[1.7] text-ink/75 max-w-[58ch]; }
+  .meta { @apply text-[13px] tracking-[0.02em] text-ink/55; }
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+
+/* grain texture retired with the v003 palette; class kept so markup stays valid */
+.grain { }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+@keyframes heroProgress { from { width: 0%; } to { width: 100%; } }

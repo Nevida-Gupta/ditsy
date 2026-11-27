@@ -1,0 +1,339 @@
+// Ditsy production schema (Postgres).
+// The prototype reads the catalogue from src/data/catalog.ts and stores orders/enquiries as JSON
+// (src/lib/server/store.ts). Phase 2 swaps those two modules for Prisma queries against this schema;
+// page and component code does not change because everything goes through src/lib/catalog.ts.
+//
+//   npm i -D prisma && npm i @prisma/client
+//   DATABASE_URL=postgres://... npx prisma migrate dev --name init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Vertical {
+  jewellery
+  gifting
+}
+
+enum OrderStatus {
+  pending_payment
+  paid
+  confirmed_cod
+  packed
+  shipped
+  delivered
+  cancelled
+}
+
+enum PaymentMethod {
+  online
+  cod
+}
+
+enum EnquiryType {
+  bulk
+  giftbox
+  return_gift
+}
+
+enum EnquiryStatus {
+  new
+  contacted
+  quoted
+  won
+  lost
+}
+
+enum ReviewStatus {
+  pending
+  approved
+  rejected
+}
+
+enum AdminRole {
+  owner
+  jewellery_manager
+  gifting_manager
+  fulfilment
+}
+
+// ---------- Catalogue ----------
+
+model Category {
+  id       String    @id @default(cuid())
+  slug     String    @unique
+  name     String
+  vertical Vertical
+  group    String // "Earrings", "Sets", "Ornaments", "Return gifts" ...
+  blurb    String
+  art      Json? // illustration fallback until photography exists
+  sort     Int       @default(0)
+  products Product[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  vertical    Vertical
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  price       Int // INR incl. GST, whole rupees
+  compareAt   Int?
+  short       String
+  description String
+  details     String[]
+  stock       Int      @default(0) // used when there are no variants
+  tags        String[]
+  occasions   String[]
+  isNew       Boolean  @default(false)
+  bestseller  Boolean  @default(false)
+  boxable     Boolean  @default(false) // can go inside Build Your Own Gift Box
+  art         Json?
+  model3d     String? // "procedural:jhumka" or a .glb URL
+  published   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  images      ProductImage[]
+  variants    Variant[]
+  collections CollectionProduct[]
+  bundles     BundleProduct[]
+  reviews     Review[]
+  pairsWith   ProductPair[]       @relation("pairFrom")
+  pairedBy    ProductPair[]       @relation("pairTo")
+
+  @@index([vertical, categoryId])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String
+  sort      Int     @default(0)
+}
+
+model Variant {
+  id         String  @id @default(cuid())
+  productId  String
+  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  label      String
+  priceDelta Int     @default(0)
+  stock      Int     @default(0)
+  sku        String? @unique
+}
+
+model ProductPair {
+  fromId String
+  toId   String
+  from   Product @relation("pairFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to     Product @relation("pairTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@id([fromId, toId])
+}
+
+model Collection {
+  id       String              @id @default(cuid())
+  slug     String              @unique
+  name     String
+  vertical Vertical
+  line     String
+  story    String
+  tone     Json // { bg, fg, accent } for merchandising banners
+  heroUrl  String?
+  sort     Int                 @default(0)
+  products CollectionProduct[]
+}
+
+model CollectionProduct {
+  collectionId String
+  productId    String
+  sort         Int        @default(0)
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, productId])
+}
+
+model Bundle {
+  id       String          @id @default(cuid())
+  slug     String          @unique
+  name     String
+  vertical Vertical
+  line     String
+  price    Int
+  active   Boolean         @default(true)
+  products BundleProduct[]
+}
+
+model BundleProduct {
+  bundleId  String
+  productId String
+  bundle    Bundle  @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([bundleId, productId])
+}
+
+model Occasion {
+  id    String @id @default(cuid())
+  slug  String @unique
+  name  String
+  line  String
+  story String
+  tone  String
+  art   Json?
+}
+
+model ReturnGiftCombo {
+  id             String   @id @default(cuid())
+  slug           String   @unique
+  name           String
+  tier           String // under-199 | 199-399 | 399-699 | premium
+  pricePerPerson Int
+  minQty         Int
+  includes       String[]
+  occasions      String[]
+  art            Json?
+}
+
+// ---------- Gift box builder ----------
+
+model BoxOption {
+  id       String  @id @default(cuid())
+  name     String
+  price    Int
+  capacity Int
+  color    String
+  lid      String
+  note     String
+  active   Boolean @default(true)
+}
+
+model RibbonOption {
+  id     String  @id @default(cuid())
+  name   String
+  color  String
+  price  Int
+  active Boolean @default(true)
+}
+
+model CardOption {
+  id     String  @id @default(cuid())
+  name   String
+  color  String
+  price  Int
+  active Boolean @default(true)
+}
+
+// ---------- Commerce ----------
+
+model Customer {
+  id        String   @id @default(cuid())
+  phone     String   @unique // OTP login
+  email     String?
+  name      String?
+  createdAt DateTime @default(now())
+  orders    Order[]
+  wishlist  String[] // product slugs
+}
+
+model Order {
+  id                String        @id // DTY-YYMMDD-XXXXXX
+  createdAt         DateTime      @default(now())
+  status            OrderStatus   @default(pending_payment)
+  payment           PaymentMethod
+  customerId        String?
+  customer          Customer?     @relation(fields: [customerId], references: [id])
+  lines             Json // snapshot of CartLine[] at purchase time
+  subtotal          Int
+  discount          Int
+  shipping          Int
+  codFee            Int
+  total             Int
+  couponCode        String?
+  address           Json
+  giftNote          String?
+  razorpayOrderId   String?       @unique
+  razorpayPaymentId String?
+  trackingUrl       String?
+}
+
+model Coupon {
+  code      String    @id
+  label     String
+  type      String // percent | flat | shipping
+  value     Int
+  min       Int?
+  vertical  Vertical?
+  startsAt  DateTime?
+  endsAt    DateTime?
+  usageCap  Int?
+  usedCount Int       @default(0)
+  active    Boolean   @default(true)
+}
+
+model Review {
+  id        String       @id @default(cuid())
+  productId String
+  product   Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String
+  city      String?
+  rating    Int
+  text      String
+  status    ReviewStatus @default(pending)
+  createdAt DateTime     @default(now())
+}
+
+model Enquiry {
+  id            String        @id
+  createdAt     DateTime      @default(now())
+  type          EnquiryType
+  status        EnquiryStatus @default(new)
+  name          String
+  phone         String
+  email         String?
+  company       String?
+  occasion      String?
+  quantity      Int?
+  budgetPerGift String?
+  city          String?
+  deliveryDate  String?
+  customisation String?
+  details       Json?
+  notes         String? // internal follow-up notes
+}
+
+model Subscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
+model Banner {
+  id       String   @id @default(cuid())
+  slot     String // "announcement" | "home-hero" | "jewellery-hero" | "gifting-hero"
+  title    String
+  body     String?
+  href     String?
+  imageUrl String?
+  active   Boolean  @default(true)
+  startsAt DateTime?
+  endsAt   DateTime?
+  sort     Int      @default(0)
+}
+
+model AdminUser {
+  id       String    @id @default(cuid())
+  email    String    @unique
+  role     AdminRole
+  // jewellery_manager and gifting_manager only see their own vertical
+  verticals Vertical[]
+}
